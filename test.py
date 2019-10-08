@@ -500,16 +500,17 @@ class Lobby:
 
         log("UDP Server started on port {}".format(udp_port))
 
-        httpd = HTTPServer(('localhost', http_port), Lobby.SimpleHTTPRequestHandler)
+        httpd = HTTPServer((host, http_port), Lobby.SimpleHTTPRequestHandler)
         thread = threading.Thread(target=httpd.serve_forever)
         # thread.daemon = True
         thread.start()
         log("HTTP Server started on port {}".format(http_port))
         # httpd.serve_forever()
 
+
 lobby_server = None
-# HOST, PORT = "72.14.191.97", 27613
-# HOST, PORT = "72.14.191.97", 27713
+
+
 def main(argv):
     host = "localhost"
     udp_port = 27713
