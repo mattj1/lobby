@@ -482,10 +482,15 @@ class Lobby:
             games_dict = [{
                 "ip": "{}:{}".format(x.ip, x.port),
                 "info_string": x.info_string,
-                "internal_ip": x.internal_ip
+                "internal_ip": x.internal_ip,
+                "name": x.name,
+                "num_players": x.num_players,
             } for x in lobby_server.servers]
 
-            json_string = json.dumps(games_dict)
+            json_string = json.dumps({
+                "games": games_dict}
+            )
+
             self.wfile.write(json_string.encode(encoding='utf_8'))
             # self.wfile.write(b'Hello, world!')
 
