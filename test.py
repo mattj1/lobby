@@ -9,10 +9,8 @@ import time
 import datetime
 import struct
 from struct import *
-# from numpy import *
 import bitstream
 from bitstream import BitStream
-from numpy import int32
 
 from game import Game
 
@@ -25,7 +23,12 @@ def timer_ms():
     return int(round(time.time() * 1000))
 
 
-class uint(object):
+class int32(object):
+    def __init__(self):
+        self.num_bits = 32
+
+
+class uint:
     def __init__(self, num_bits):
         self.num_bits = num_bits
 
@@ -218,10 +221,10 @@ class MyUDPHandler(SocketServer.BaseRequestHandler):
     def processHeartbeat(self, msg: BitStream):
 
         # Server ID. Should be random
-        server_id = swap32(msg.read(int32))
+        server_id = swap32(msg.read(uint(32)))
 
         # Game ID (Hardcoded) - so lobby can support different games/products
-        host_game_id = swap32(msg.read(int32))
+        host_game_id = swap32(msg.read(uint(32)))
 
         # Internal endpoint of host
         addressBytesLength = msg.read(uint(8))
@@ -504,7 +507,7 @@ class Lobby:
         log("HTTP Server started on port {}".format(http_port))
         # httpd.serve_forever()
 
-
+lobby_server = None
 # HOST, PORT = "72.14.191.97", 27613
 # HOST, PORT = "72.14.191.97", 27713
 def main(argv):
@@ -536,6 +539,7 @@ def main(argv):
     # print('Input file is "', inputfile)
     # print('Output file is "', outputfile)
 
+    global lobby_server
     lobby_server = Lobby(host, udp_port, tcp_port)
 
 
@@ -546,5 +550,5 @@ HOST = "localhost"
 UDP_PORT = 27713
 HTTP_PORT = 8000
 
-lobby_server = None
+
 
