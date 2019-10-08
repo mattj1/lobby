@@ -1,4 +1,2 @@
-numpy
-bitstream
-
-
+bitstream==2.5.4
+numpy==1.17.2
