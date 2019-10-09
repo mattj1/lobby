@@ -296,7 +296,7 @@ class MyUDPHandler(SocketServer.BaseRequestHandler):
         payload += b"\x04" + pack('!L', host_internal_addr) + pack('!H', host_internal_port)
 
         # host External
-        payload += b"\x04" + pack('!L', dest_addr) + pack('!H', dest_port)
+        payload += b"\x04" + pack('!L', dest_addr) + pack('=H', dest_port)
         payload += b"\x04" + bytes("test", "utf-8")
 
         payload_len_bits = len(payload) << 3
@@ -305,6 +305,7 @@ class MyUDPHandler(SocketServer.BaseRequestHandler):
 
         # send this packet to the client
         addr = (inttoip(client_external_address), client_external_port)
+        print("send to client: ", addr)
         sck = self.request[1]
         sck.sendto(bytearray(pck), addr)
 
@@ -334,6 +335,7 @@ class MyUDPHandler(SocketServer.BaseRequestHandler):
 
         # send this packet to the host
         addr = (inttoip(dest_addr), dest_port)
+        print("send to server: ", addr)
         sck = self.request[1]
         sck.sendto(bytearray(pck), addr)
 
