@@ -13,6 +13,7 @@ import bitstream
 from bitstream import BitStream
 
 from game import Game
+from util import ip_to_int, inttoip
 
 
 def timer_sec():
@@ -146,17 +147,6 @@ bitstream.register(lidgrenStr, reader=read_lidgrenStr_factory, writer=write_lidg
 #     global db
 #     return db.escape_string(str)
 
-
-def inttoip(ip):
-    return inet_ntoa(struct.pack('!I', ip))
-    # return inet_ntoa(hex(int(ip))[2:].zfill(8).decode('hex'))
-
-
-def ip_to_int(ip):
-    # network-formatted
-    return int(inet_aton(ip).encode('hex'), 16)
-
-
 def log(str):
     ts = time.time()
     st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
@@ -230,135 +220,122 @@ class MyUDPHandler(SocketServer.BaseRequestHandler):
         addressBytesLength = msg.read(uint(8))
         internal_addr = msg.read(uint(32))
         internal_port = ntohs(msg.read(uint(16)))
-        internal_ip = "{}:{}".format(inttoip(internal_addr), internal_port)
 
         # info string
         info_string = msg.read(lidgrenStr())
-        ip = self.client_address[0]
-        port = self.client_address[1]
-        print("Heartbeat:", server_id, host_game_id, ip, port, internal_ip, info_string)
+        ip = ip_to_int(self.client_address[0])
 
-        # socket = self.request[1]
+        port = self.client_address[1]
+        print("Client address: {}".format(self.client_address))
+
+        print("Heartbeat:", server_id, host_game_id,
+              "{}:{}".format(inttoip(ip), port),
+              "{}:{}".format(inttoip(internal_addr), internal_port),
+              info_string)
 
         # if this server exists, just update the existing entry
-        # lobby_server.remove_server_with_id(host_game_id)
 
-        server = lobby_server.get_server(ip, port, host_game_id)
+        lobby_server.mutex.acquire()
 
-        if not server:
-            server = lobby_server.insert_server(ip, port, host_game_id, internal_ip, info_string)
+        try:
+            server = lobby_server.get_server(ip, port, host_game_id)
 
-        server.update(info_string)
+            if not server:
+                server = lobby_server.insert_server(ip, port, host_game_id, internal_addr, internal_port, info_string)
+
+            server.update(info_string)
+        finally:
+            lobby_server.mutex.release()
 
     def processPunchThrough(self, msg):
-        print("punch-through:")
 
         # Internal endpoint of client
         addressBytesLength = msg.read(uint(8))
         internal_addr = msg.read(uint(32))
-        internal_port = msg.read(uint(16))
+        internal_port = ntohs(msg.read(uint(16)))
+
+        # Host address
+        addressBytesLength = msg.read(uint(8))
+        dest_addr = msg.read(uint(32))
+        dest_port = ntohs(msg.read(uint(16)))
 
         # External endpoint of client
         client_external_address = ip_to_int(self.client_address[0])
         client_external_port = self.client_address[1]
 
-        # Host address
-        addressBytesLength = msg.read(uint(8))
-        dest_addr = msg.read(uint(32))
-        dest_port = msg.read(uint(16))
+        print("punch-through: dest: {}:{}".format(inttoip(dest_addr), dest_port))
 
         # Host internal
-        print("TODO: punch-through should require game/server ID as well...")
+        # print("TODO: punch-through should require game/server ID as well...")
 
-        return
+        server = lobby_server.get_server(dest_addr, dest_port, 101)
 
-        host_internal_ip_port = lobby_server.internal_IP_for_server(inttoip(dest_addr), ntohs(dest_port))
-
-        if host_internal_ip_port == None:
+        if not server:
             return
 
-        host_internal_addr = ip_to_int(host_internal_ip_port[0])
-        host_internal_port = htons(int(host_internal_ip_port[1]))
+        host_internal_addr = server.internal_addr
+        host_internal_port = server.internal_port
 
-        print("IP and port array: ", host_internal_ip_port)
+        print("host internal: ", host_internal_addr, host_internal_port)
 
         # print "Host address: {} {}".format(dest_addr, repr(dest_addr))
         print("Sending punch-through:  --->")
 
-        print("Host external: {}:{}".format(inttoip(dest_addr), ntohs(dest_port)))
-        print("Host internal: {}:{}".format(inttoip(host_internal_addr), ntohs(host_internal_port)))
+        print("Host external: {}:{}".format(inttoip(dest_addr), dest_port))
+        print("Host internal: {}:{}".format(inttoip(host_internal_addr), host_internal_port))
         print("Client external: {}:{}".format(inttoip(client_external_address), client_external_port))
-        print("Client internal: {}:{}".format(inttoip(internal_addr), ntohs(internal_port)))
-        # return
-        # To client:
-        # To host:
-        pck = "\x8b"  # packet type 139
-        pck += "\x00\x00"  # reliable seq (since packet type is 139)
+        print("Client internal: {}:{}".format(inttoip(internal_addr), internal_port))
 
-        payload = "\x00"  # byte:0 (Designated Client)
+        # To client:
+        pck = b"\x8b"  # packet type 139
+        pck += b"\x00\x00"  # reliable seq (since packet type is 139)
+
+        payload = b"\x00"  # byte:0 (Designated Client)
 
         # host Internal
-        # TODO
-        payload += "\x04{}".format(pack('!I', host_internal_addr))
-        payload += "{}".format(pack('!H', host_internal_port))
-        # host External
-        payload += "\x04{}".format(pack('!I', dest_addr))
-        payload += "{}".format(pack('!H', dest_port))
-        payload += "\x04test"  # token (string)
+        payload += b"\x04" + pack('!L', host_internal_addr) + pack('!H', host_internal_port)
 
-        payload_len = len(payload) * 8
-        pck += "{}".format(pack('!H', swap16(payload_len)))
+        # host External
+        payload += b"\x04" + pack('!L', dest_addr) + pack('!H', dest_port)
+        payload += b"\x04" + bytes("test", "utf-8")
+
+        payload_len_bits = len(payload) << 3
+        pck += pack('!H', swap16(payload_len_bits))
         pck += payload
 
         # send this packet to the client
+        addr = (inttoip(client_external_address), client_external_port)
         sck = self.request[1]
-        sck.sendto(pck, (inttoip(client_external_address), client_external_port))
+        sck.sendto(bytearray(pck), addr)
 
         # -------------
 
         # To host:
-        pck = "\x8b"  # packet type 139
-        pck += "\x00\x00"  # reliable seq (since packet type is 139)
+        pck = b"\x8b"  # packet type 139
+        pck += b"\x00\x00"  # reliable seq (since packet type is 139)
 
-        payload = "\x01"  # byte:1
+        payload = b"\x01"  # byte:1
 
         # client Internal
-        payload += "\x04{}".format(pack('!I', internal_addr))
-        payload += "{}".format(pack('!H', internal_port))
+        payload += b"\x04" + pack('!L', internal_addr) + pack('!H', internal_port)
 
         # client External
-        payload += "\x04{}".format(pack('!I', client_external_address))
-        payload += "{}".format(pack('=H', client_external_port))
+        payload += b"\x04" + pack('!L', client_external_address) + pack('=H', client_external_port)
 
         # token (string)
-        payload += "\x04test"
+        payload += b"\x04" + bytes("test", "utf-8")
 
-        payload_len = len(payload) * 8
-        print("payload: ", payload)
-        print("payload len bytes: ", payload_len / 8)
-        print("payload len bits: ", payload_len)
+        payload_len_bits = len(payload) << 3
+        print("payload: ", type(payload), len(payload), payload)
+        print("payload len: bits: {} bytes: {} ".format(payload_len_bits, payload_len_bits >> 3))
 
-        pck += "{}".format(pack('!H', swap16(payload_len)))
+        pck += pack('!H', swap16(payload_len_bits))
         pck += payload
 
         # send this packet to the host
+        addr = (inttoip(dest_addr), dest_port)
         sck = self.request[1]
-        sck.sendto(pck, (inttoip(dest_addr), ntohs(dest_port)))
-        return
-        # addr:port for server to send this request to
-
-        pck = "{}\xff\x04".format(pack('<h', 10))  # baaad. Should be network-formatted.
-
-        # Add the address and port that this packet came from
-        pck += "{}".format(pack('!I', ip_to_int(self.client_address[0])));
-        pck += "{}".format(pack('!H', self.client_address[1]));
-
-        # send: [length:10(2)]  [0xff(1)][0x04(1)][dest addr, net formatted(4)][dest port, net formatted(2)]
-        # pck = "\xff\x04{}{}".format(pack('!I', iptoint(self.client_address[0])), pack('!H, socket.htons(self.client_address[1])))
-        # print "packet: "
-        # print ":".join("{0:x}".format(ord(c)) for c in pck)
-
-        # socket.sendto(data.upper(), self.client_address)
+        sck.sendto(bytearray(pck), addr)
 
     # PER MESSAGE:
     # 7 bits - NetMessageType
@@ -424,7 +401,7 @@ class Lobby:
 
     def get_server(self, ip, port, game_id):
         for s in self.servers:
-            if s.ip == ip and s.port == port and s.game_id == game_id:
+            if s.addr == ip and s.port == port and s.game_id == game_id:
                 return s
 
         return None
@@ -451,24 +428,28 @@ class Lobby:
     #
     #     return result
 
-    def insert_server(self, ip, port, game_id, internal_ip, info_string):
-        game = Game()
-        game.ip = ip
-        game.port = port
-        game.game_id = game_id
-        game.internal_ip = internal_ip
-        game.info_string = info_string
+    def insert_server(self, ip, port, game_id, internal_addr, internal_port, info_string):
+        server = Game()
+        server.addr = ip
+        server.port = port
+        server.game_id = game_id
+        server.internal_addr = internal_addr
+        server.internal_port = internal_port
+        server.info_string = info_string
 
-        game.timestamp = datetime.datetime.now() + datetime.timedelta(seconds=15)
+        server.timestamp = datetime.datetime.now() + datetime.timedelta(seconds=15)
 
-        self.servers.append(game)
+        self.servers.append(server)
 
         print("Added server: {}:{} {}".format(ip, port, info_string))
 
-        return game
+        return server
 
     def remove_server_with_id(self, game_id):
         self.servers = [x for x in self.servers if x.game_id is not game_id and x.timestamp < datetime.datetime.now()]
+
+    def remove_old_servers(self):
+        self.servers = [x for x in self.servers if x.timestamp < datetime.datetime.now()]
 
         # query = "delete from games where timestamp < now() and game_id='{}'".format(game_id)
 
@@ -479,13 +460,18 @@ class Lobby:
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
 
-            games_dict = [{
-                "ip": "{}:{}".format(x.ip, x.port),
-                "info_string": x.info_string,
-                "internal_ip": x.internal_ip,
-                "name": x.name,
-                "num_players": x.num_players,
-            } for x in lobby_server.servers]
+            lobby_server.mutex.acquire()
+
+            try:
+                games_dict = [{
+                    "ip": x.addr_formatted(),
+                    "info_string": x.info_string,
+                    "internal_ip": x.internal_addr_formatted(),
+                    "name": x.name,
+                    "num_players": x.num_players,
+                } for x in lobby_server.servers if x.timestamp > datetime.datetime.now()]
+            finally:
+                lobby_server.mutex.release()
 
             json_string = json.dumps({
                 "games": games_dict}
@@ -495,6 +481,8 @@ class Lobby:
             # self.wfile.write(b'Hello, world!')
 
     def __init__(self, host, udp_port, http_port):
+
+        self.mutex = threading.Lock()
 
         print("Host: {}, UDP: {}, HTTP: {}".format(host, udp_port, http_port))
 
@@ -513,7 +501,7 @@ class Lobby:
         # httpd.serve_forever()
 
 
-lobby_server = None
+lobby_server: Lobby = None
 
 
 def main(argv):
@@ -551,10 +539,3 @@ def main(argv):
 
 if __name__ == "__main__":
     main(sys.argv[1:])
-
-HOST = "localhost"
-UDP_PORT = 27713
-HTTP_PORT = 8000
-
-
-

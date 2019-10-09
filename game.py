@@ -1,15 +1,18 @@
 import datetime
 
+from util import inttoip
+
 
 class Game:
 
     def __init__(self):
-        self.ip = 0
+        self.addr = 0
         self.port = 0
         self.game_id = 0
 
         self.server_id = 0
-        self.internal_ip = None
+        self.internal_addr = 0
+        self.internal_port = 0
         self.timestamp = None
         self.info_string = ""
 
@@ -31,6 +34,12 @@ class Game:
             d[arr[i]] = arr[i + 1]
 
         return d
+
+    def addr_formatted(self):
+        return "{}:{}".format(inttoip(self.addr), self.port)
+
+    def internal_addr_formatted(self):
+        return "{}:{}".format(inttoip(self.internal_addr), self.internal_port)
 
     def update(self, info_string):
         info_dict = self.dict_from_info_string(info_string)
