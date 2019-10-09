@@ -292,10 +292,10 @@ class MyUDPHandler(SocketServer.BaseRequestHandler):
         payload = b"\x00"  # byte:0 (Designated Client)
 
         # host Internal
-        payload += b"\x04" + pack('!L', host_internal_addr) + pack('!H', host_internal_port)
+        payload += b"\x04" + pack('!L', host_internal_addr) + pack('<H', host_internal_port)
 
         # host External
-        payload += b"\x04" + pack('!L', dest_addr) + pack('!H', dest_port)
+        payload += b"\x04" + pack('!L', dest_addr) + pack('<H', dest_port)
         payload += b"\x04" + bytes("test", "utf-8")
 
         payload_len_bits = len(payload) << 3
