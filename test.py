@@ -226,9 +226,8 @@ class MyUDPHandler(SocketServer.BaseRequestHandler):
         ip = ip_to_int(self.client_address[0])
 
         port = self.client_address[1]
-        print("Client address: {}".format(self.client_address))
 
-        print("Heartbeat:", server_id, host_game_id,
+        print("Heartbeat from", self.client_address, ": ", server_id, host_game_id,
               "{}:{}".format(inttoip(ip), port),
               "{}:{}".format(inttoip(internal_addr), internal_port),
               info_string)
@@ -370,7 +369,7 @@ class MyUDPHandler(SocketServer.BaseRequestHandler):
         msg.read(uint(8))
 
         length = msg.read(uint(16))
-        log("length: %s" % hex(length))
+        # log("length: %s" % hex(length))
 
         length = swap16(length)
         log("length: %s (%d bytes)" % (hex(length), length >> 3))
