@@ -227,7 +227,7 @@ class MyUDPHandler(SocketServer.BaseRequestHandler):
 
         port = self.client_address[1]
 
-        print("Heartbeat from", self.client_address, ": ", server_id, host_game_id,
+        print("Heartbeat from", self.client_address, ":", server_id, host_game_id,
               "{}:{}".format(inttoip(ip), port),
               "{}:{}".format(inttoip(internal_addr), internal_port),
               info_string)
@@ -357,8 +357,6 @@ class MyUDPHandler(SocketServer.BaseRequestHandler):
     def handle(self):
         self.data = self.request[0]
 
-        log("{}:{} wrote {} bytes:".format(self.client_address[0], self.client_address[1], len(self.data)))
-
         msg = BitStream()
         msg.write(self.data, bytes)
 
@@ -372,7 +370,12 @@ class MyUDPHandler(SocketServer.BaseRequestHandler):
         # log("length: %s" % hex(length))
 
         length = swap16(length)
-        log("length: %s (%d bytes)" % (hex(length), length >> 3))
+        # log("length: %s (%d bytes)" % (hex(length), length >> 3))
+        log("{}:{} wrote {} bytes. Payload size: {} bytes".format(
+            self.client_address[0],
+            self.client_address[1],
+            len(self.data),
+            length >> 3))
 
         length >>= 3
 
