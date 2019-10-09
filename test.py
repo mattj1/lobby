@@ -295,7 +295,7 @@ class MyUDPHandler(SocketServer.BaseRequestHandler):
         payload += b"\x04" + pack('!L', host_internal_addr) + pack('!H', host_internal_port)
 
         # host External
-        payload += b"\x04" + pack('!L', dest_addr) + pack('=H', dest_port)
+        payload += b"\x04" + pack('!L', dest_addr) + pack('!H', dest_port)
         payload += b"\x04" + bytes("test", "utf-8")
 
         payload_len_bits = len(payload) << 3
@@ -317,10 +317,10 @@ class MyUDPHandler(SocketServer.BaseRequestHandler):
         payload = b"\x01"  # byte:1
 
         # client Internal
-        payload += b"\x04" + pack('!L', internal_addr) + pack('!H', internal_port)
+        payload += b"\x04" + pack('!L', internal_addr) + pack('<H', internal_port)
 
         # client External
-        payload += b"\x04" + pack('!L', client_external_address) + pack('=H', client_external_port)
+        payload += b"\x04" + pack('!L', client_external_address) + pack('<H', client_external_port)
 
         # token (string)
         payload += b"\x04" + bytes("test", "utf-8")
@@ -416,22 +416,6 @@ class Lobby:
 
         return False
 
-    # def internal_IP_for_server(self, ip, port):
-    #     query = "select internal_ip from games where ip2 = \'{}\' and port = {}".format(ip, port)
-    #     cursor = self.runQuery(query)
-    #
-    #     result = None
-    #
-    #     if cursor.rowcount > 0:
-    #         results = cursor.fetchall()
-    #         for row in results:
-    #             result = row[0].split(":")
-    #             break
-    #
-    #     cursor.close()
-    #
-    #     return result
-
     def insert_server(self, ip, port, game_id, internal_addr, internal_port, info_string):
         server = Game()
         server.addr = ip
@@ -482,7 +466,13 @@ class Lobby:
             )
 
             self.wfile.write(json_string.encode(encoding='utf_8'))
-            # self.wfile.write(b'Hello, world!')
+
+    def input_thread(arg):
+        while True:
+            line = input(">")
+            
+            if line == 'quit':
+                return
 
     def __init__(self, host, udp_port, http_port):
 
@@ -499,10 +489,13 @@ class Lobby:
 
         httpd = HTTPServer((host, http_port), Lobby.SimpleHTTPRequestHandler)
         thread = threading.Thread(target=httpd.serve_forever)
-        # thread.daemon = True
+        thread.daemon = True
         thread.start()
         log("HTTP Server started on port {}".format(http_port))
         # httpd.serve_forever()
+
+        thread = threading.Thread(target=self.input_thread)
+        thread.start()
 
 
 lobby_server: Lobby = None
@@ -533,9 +526,6 @@ def main(argv):
             udp_port = int(arg)
         elif opt in ("-t", "--tcp-port"):
             tcp_port = int(arg)
-
-    # print('Input file is "', inputfile)
-    # print('Output file is "', outputfile)
 
     global lobby_server
     lobby_server = Lobby(host, udp_port, tcp_port)
