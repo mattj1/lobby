@@ -1,19 +1,16 @@
-import getopt
-import json
-import sys
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from socket import *
-import threading
-import socketserver as SocketServer
-import time
 import datetime
+import getopt
 import struct
-from struct import *
-import bitstream
-from bitstream import BitStream
+import sys
+import threading
+import time
 
+import bitstream
+
+from HTTPService import HTTPService
+from InputThread import InputThread
 from game import Game
-from util import ip_to_int, inttoip
+from util import log
 
 
 def timer_sec():
@@ -43,6 +40,9 @@ class lidgrenStr(object):
     def __init__(self):
         pass
 
+class nullTerminatedStr(object):
+    def __init__(self):
+        pass
 
 def swap32(i):
     return struct.unpack("<I", struct.pack(">I", i))[0]
@@ -132,272 +132,41 @@ def write_lidgrenStr_factory(instance):
         else:
             stream.write(uint(8), len(data))  # Warning, is not variable-length int. Max string length is 127!
 
-            for c in string:
+            for c in stream:
                 stream.write(uint(8), c)
 
     return write_lidgrenStr
 
 
+def read_nullTerminatedStr_factory(instance):
+    def read_nullTerminatedStr(stream, n=None):
+
+        if n is None:
+            s = ""
+            while True:
+                ch = stream.read(v_uint())
+                if ch == 0:
+                    return s
+
+                s += chr(ch)
+
+            # return "".join(chr(stream.read(v_uint())) for _ in range(length))
+        else:
+            strings = [read_nullTerminatedStr(stream) for _ in range(n)]
+            return strings
+
+    return read_nullTerminatedStr
+
+
 bitstream.register(uint, reader=read_uint_factory, writer=write_uint_factory)
 bitstream.register(v_uint, reader=read_v_uint_factory)
 bitstream.register(lidgrenStr, reader=read_lidgrenStr_factory, writer=write_lidgrenStr_factory)
+bitstream.register(nullTerminatedStr, reader=read_nullTerminatedStr_factory, writer=None)
 
 
 # def sqlSafe(str):
 #     global db
 #     return db.escape_string(str)
-
-def log(str):
-    ts = time.time()
-    st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
-    print("[{}] {}".format(st, str))
-
-
-class MyUDPHandler(SocketServer.BaseRequestHandler):
-    """
-    This class works similar to the TCP handler class, except that
-    self.request consists of a pair of data and client socket, and since
-    there is no connection the client address must be given explicitly
-    when sending data back via sendto().
-    """
-
-    def __init__(self, request, client_address, server):
-        super().__init__(request, client_address, server)
-        self.idx = 0
-        self.data = ""
-        # print "UDP server started"
-
-    # def readString(self, data):
-    #
-    #     # l = unpack('H', self.getBytes(2))[0]
-    #
-    #     # print "String length: %d" % l
-    #     l = self.data[self.idx:].find('\x00');
-    #
-    #     str = self.data[self.idx: self.idx + l]
-    #     self.idx += (l + 1)
-    #
-    #     return str
-
-    # def getBytes(self, numBytes):
-    #     bytes = self.data[self.idx: self.idx + numBytes]
-    #     self.idx += numBytes
-    #     return bytes
-
-    # def runQuery(self, query):
-    #     global db
-    #
-    #     try:
-    #         db.ping()
-    #     except (AttributeError, MySQLdb.OperationalError):
-    #         print("Reconnecting...")
-    #         connectToDB()
-    #
-    #     if self.logNextQuery:
-    #         log("Run query: {}".format(query))
-    #
-    #     self.logNextQuery = False
-    #
-    #     cursor = db.cursor()
-    #     cursor.execute(query)
-    #     db.commit()
-    #
-    #     return cursor
-
-    # def runQueryAndClose(self, query):
-    #     cursor = self.runQuery(query)
-    #     cursor.close()
-
-    def processHeartbeat(self, msg: BitStream):
-
-        # Server ID. Should be random
-        server_id = swap32(msg.read(uint(32)))
-
-        # Game ID (Hardcoded) - so lobby can support different games/products
-        host_game_id = swap32(msg.read(uint(32)))
-
-        # Internal endpoint of host
-        addressBytesLength = msg.read(uint(8))
-        internal_addr = msg.read(uint(32))
-        internal_port = ntohs(msg.read(uint(16)))
-
-        # info string
-        info_string = msg.read(lidgrenStr())
-        ip = ip_to_int(self.client_address[0])
-
-        port = self.client_address[1]
-
-        print("Heartbeat from", self.client_address, ":", server_id, host_game_id,
-              "{}:{}".format(inttoip(ip), port),
-              "{}:{}".format(inttoip(internal_addr), internal_port),
-              info_string)
-
-        # if this server exists, just update the existing entry
-
-        lobby_server.mutex.acquire()
-
-        try:
-            server = lobby_server.get_server(ip, port, host_game_id)
-
-            if not server:
-                server = lobby_server.insert_server(ip, port, host_game_id, internal_addr, internal_port, info_string)
-
-            server.update(info_string)
-        finally:
-            lobby_server.mutex.release()
-
-    def processPunchThrough(self, msg):
-
-        # Internal endpoint of client
-        addressBytesLength = msg.read(uint(8))
-        internal_addr = msg.read(uint(32))
-        internal_port = ntohs(msg.read(uint(16)))
-
-        # Host address
-        addressBytesLength = msg.read(uint(8))
-        dest_addr = msg.read(uint(32))
-        dest_port = ntohs(msg.read(uint(16)))
-
-        # External endpoint of client
-        client_external_address = ip_to_int(self.client_address[0])
-        client_external_port = self.client_address[1]
-
-        print("punch-through: dest: {}:{}".format(inttoip(dest_addr), dest_port))
-
-        # Host internal
-        # print("TODO: punch-through should require game/server ID as well...")
-
-        server = lobby_server.get_server(dest_addr, dest_port, 101)
-
-        if not server:
-            return
-
-        host_internal_addr = server.internal_addr
-        host_internal_port = server.internal_port
-
-        print("host internal: ", host_internal_addr, host_internal_port)
-
-        # print "Host address: {} {}".format(dest_addr, repr(dest_addr))
-        print("Sending punch-through:  --->")
-
-        print("Host external: {}:{}".format(inttoip(dest_addr), dest_port))
-        print("Host internal: {}:{}".format(inttoip(host_internal_addr), host_internal_port))
-        print("Client external: {}:{}".format(inttoip(client_external_address), client_external_port))
-        print("Client internal: {}:{}".format(inttoip(internal_addr), internal_port))
-
-        # To client:
-        pck = b"\x8b"  # packet type 139
-        pck += b"\x00\x00"  # reliable seq (since packet type is 139)
-
-        payload = b"\x00"  # byte:0 (Designated Client)
-
-        # host Internal
-        payload += b"\x04" + pack('!L', host_internal_addr) + pack('<H', host_internal_port)
-
-        # host External
-        payload += b"\x04" + pack('!L', dest_addr) + pack('<H', dest_port)
-        payload += b"\x04" + bytes("test", "utf-8")
-
-        payload_len_bits = len(payload) << 3
-        pck += pack('!H', swap16(payload_len_bits))
-        pck += payload
-
-        # send this packet to the client
-        addr = (inttoip(client_external_address), client_external_port)
-        print("send to client: ", addr)
-        sck = self.request[1]
-        sck.sendto(bytearray(pck), addr)
-
-        # -------------
-
-        # To host:
-        pck = b"\x8b"  # packet type 139
-        pck += b"\x00\x00"  # reliable seq (since packet type is 139)
-
-        payload = b"\x01"  # byte:1
-
-        # client Internal
-        payload += b"\x04" + pack('!L', internal_addr) + pack('<H', internal_port)
-
-        # client External
-        payload += b"\x04" + pack('!L', client_external_address) + pack('<H', client_external_port)
-
-        # token (string)
-        payload += b"\x04" + bytes("test", "utf-8")
-
-        payload_len_bits = len(payload) << 3
-        print("payload: ", type(payload), len(payload), payload)
-        print("payload len: bits: {} bytes: {} ".format(payload_len_bits, payload_len_bits >> 3))
-
-        pck += pack('!H', swap16(payload_len_bits))
-        pck += payload
-
-        # send this packet to the host
-        addr = (inttoip(dest_addr), dest_port)
-        print("send to server: ", addr)
-        sck = self.request[1]
-        sck.sendto(bytearray(pck), addr)
-
-    # PER MESSAGE:
-    # 7 bits - NetMessageType
-    # 1 bit - Is a message fragment?
-
-    # [8 bits NetMessageLibraryType, if NetMessageType == Library]
-
-    # [16 bits sequence number, if NetMessageType >= UserSequenced]
-
-    # 8/16 bits - Payload length in bits (variable size ushort)
-
-    # [16 bits fragments group id, if fragmented]
-    # [16 bits fragments total count, if fragmented]
-    # [16 bits fragment number, if fragmented]
-
-    # [x - Payload] if length > 0
-
-    def handle(self):
-        self.data = self.request[0]
-
-        msg = BitStream()
-        msg.write(self.data, bytes)
-
-        # msg = BitStream(self.data)
-
-        msgType = msg.read(uint(8), 1)
-        msg.read(uint(8))
-        msg.read(uint(8))
-
-        length = msg.read(uint(16))
-        # log("length: %s" % hex(length))
-
-        length = swap16(length)
-        # log("length: %s (%d bytes)" % (hex(length), length >> 3))
-        log("{}:{} wrote {} bytes. Payload size: {} bytes".format(
-            self.client_address[0],
-            self.client_address[1],
-            len(self.data),
-            length >> 3))
-
-        length >>= 3
-
-        packet_type = msg.read(uint(8))
-
-        if packet_type == 0:
-            self.processHeartbeat(msg)
-
-        if packet_type == 4:
-            self.processPunchThrough(msg)
-
-        # #print ":".join("{0:x}".format(ord(c)) for c in self.data)
-        #
-        # l = unpack('H', self.getBytes(2))[0]
-        #
-        # packet_type = unpack('b', self.getBytes(1))[0]
-        #
-        # #print "packet len: %d" % l
-        # #print "packet_type: %d" % packet_type
-        #
-        # if packet_type == 0:
-        #     self.processHeartbeat()
 
 
 class Lobby:
@@ -441,64 +210,22 @@ class Lobby:
 
         # query = "delete from games where timestamp < now() and game_id='{}'".format(game_id)
 
-    class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
-
-        def do_GET(self):
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-
-            lobby_server.mutex.acquire()
-
-            try:
-                games_dict = [{
-                    "ip": x.addr_formatted(),
-                    "info_string": x.info_string,
-                    "internal_ip": x.internal_addr_formatted(),
-                    "name": x.name,
-                    "num_players": x.num_players,
-                } for x in lobby_server.servers if x.timestamp > datetime.datetime.now()]
-            finally:
-                lobby_server.mutex.release()
-
-            json_string = json.dumps({
-                "games": games_dict}
-            )
-
-            self.wfile.write(json_string.encode(encoding='utf_8'))
-
-    def input_thread(arg):
-        while True:
-            line = input(">")
-            
-            if line == 'quit':
-                return
-
     def __init__(self, host, udp_port, http_port):
 
         self.mutex = threading.Lock()
 
-        print("Host: {}, UDP: {}, HTTP: {}".format(host, udp_port, http_port))
+        log("Host: {}, UDP: {}, HTTP: {}".format(host, udp_port, http_port))
 
-        udpserver = SocketServer.UDPServer((host, udp_port), MyUDPHandler)
-        thread = threading.Thread(target=udpserver.serve_forever)
-        thread.daemon = True
-        thread.start()
+        from UDPService import UDPService, LidgrenPacketHandler, SpectrePacketHandler
+        # UDPService(host, udp_port, packet_handler=LidgrenPacketHandler(lobby_server=self))
+        UDPService(host, udp_port, packet_handler=SpectrePacketHandler(lobby_server=self))
 
-        log("UDP Server started on port {}".format(udp_port))
+        http_service = HTTPService(host=host, http_port=http_port, lobby_server=self)
 
-        httpd = HTTPServer((host, http_port), Lobby.SimpleHTTPRequestHandler)
-        thread = threading.Thread(target=httpd.serve_forever)
-        thread.daemon = True
-        thread.start()
-        log("HTTP Server started on port {}".format(http_port))
         # httpd.serve_forever()
 
-        thread = threading.Thread(target=self.input_thread)
+        thread = InputThread(lobby_server=self)
         thread.start()
-
-
-lobby_server: Lobby = None
 
 
 def main(argv):

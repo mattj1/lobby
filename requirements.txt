@@ -1,2 +1,3 @@
+numpy
 bitstream==2.5.4
 
