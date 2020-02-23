@@ -217,8 +217,8 @@ class Lobby:
         log("Host: {}, UDP: {}, HTTP: {}".format(host, udp_port, http_port))
 
         from UDPService import UDPService, LidgrenPacketHandler, SpectrePacketHandler
-        # UDPService(host, udp_port, packet_handler=LidgrenPacketHandler(lobby_server=self))
-        UDPService(host, udp_port, packet_handler=SpectrePacketHandler(lobby_server=self))
+        UDPService(host, udp_port, packet_handler=LidgrenPacketHandler(lobby_server=self))
+        # UDPService(host, udp_port, packet_handler=SpectrePacketHandler(lobby_server=self))
 
         http_service = HTTPService(host=host, http_port=http_port, lobby_server=self)
 
