@@ -16,7 +16,7 @@ class HTTPService:
             def games(self, params):
                 print("Will return games...", params)
                 try:
-                    game_id = params["game_id"][0]
+                    game_id = int(params["game_id"][0])
                 except KeyError:
                     game_id = -1
 
