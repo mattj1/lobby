@@ -138,10 +138,13 @@ class LidgrenPacketHandler(BasePacketHandler):
         ip = ip_to_int(client_address[0])
         port = client_address[1]
 
-        print("Heartbeat from", client_address, ":", server_id, host_game_id,
-              "{}:{}".format(inttoip(ip), port),
-              "{}:{}".format(inttoip(internal_addr), internal_port),
-              info_string)
+        print("Heartbeat from {}: Server ID: {}, Host Game ID: {}",
+              client_address, server_id, host_game_id)
+
+        # print("Heartbeat from", client_address, ":", server_id, host_game_id,
+        #       "{}:{}".format(inttoip(ip), port),
+        #       "{}:{}".format(inttoip(internal_addr), internal_port),
+        #       info_string)
 
         # if this server exists, just update the existing entry
 
