@@ -64,7 +64,7 @@ class HTTPService:
 
         httpd = HTTPServer((host, http_port), SimpleHTTPRequestHandler)
         thread = threading.Thread(target=httpd.serve_forever)
-        thread.daemon = True
+        thread.daemon = False
         thread.start()
 
         log("HTTP Server started on port {}".format(http_port))

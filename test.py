@@ -231,8 +231,8 @@ class Lobby:
 
         # httpd.serve_forever()
 
-        thread = InputThread(lobby_server=self)
-        thread.start()
+        # thread = InputThread(lobby_server=self)
+        # thread.start()
 
 
 def main(argv):
