@@ -229,14 +229,12 @@ class Lobby:
 
         http_service = HTTPService(host=host, http_port=http_port, lobby_server=self)
 
-        # httpd.serve_forever()
-
         # thread = InputThread(lobby_server=self)
         # thread.start()
 
 
 def main(argv):
-    host = "localhost"
+    host = "0.0.0.0"
     udp_port = 27713
     tcp_port = 8001
 

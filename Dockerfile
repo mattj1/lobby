@@ -2,9 +2,8 @@
 # not particularly care what OS runs underneath
 FROM python:3.6-alpine3.7
 
-RUN apk --no-cache add --virtual .builddeps gcc gfortran musl-dev  && apk del .builddeps     && rm -rf /root/.cache
+# RUN apk --no-cache add --virtual .builddeps gcc gfortran musl-dev  && apk del .builddeps     && rm -rf /root/.cache
 
-#FROM python:3
 # Set an environment variable with the directory
 # where we'll be running the app
 ENV APP /app
@@ -13,7 +12,7 @@ ENV APP /app
 RUN mkdir $APP
 WORKDIR $APP
 # Expose the port uWSGI will listen on
-EXPOSE 5000
+#EXPOSE 5000
 # Copy the requirements file in order to install
 # Python dependencies
 COPY requirements.txt .
