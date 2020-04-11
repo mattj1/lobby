@@ -231,7 +231,7 @@ class Lobby:
 def main(argv):
     host = "localhost"
     udp_port = 27713
-    tcp_port = 8000
+    tcp_port = 8001
 
     def print_help():
         print('test.py -h <host> -u <udp_port> -t <tcp_port>')
