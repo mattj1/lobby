@@ -223,7 +223,9 @@ class Lobby:
 
         log("Host: {}, UDP: {}, HTTP: {}".format(host, udp_port, http_port))
 
-        from UDPService import UDPService, LidgrenPacketHandler#, SpectrePacketHandler
+        from UDPService import UDPService #, SpectrePacketHandler
+        from LidgrenPacketHandler import LidgrenPacketHandler
+
         UDPService(host, udp_port, packet_handler=LidgrenPacketHandler(lobby_server=self))
         # UDPService(host, udp_port, packet_handler=SpectrePacketHandler(lobby_server=self))
 
