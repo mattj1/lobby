@@ -2,9 +2,9 @@ import socketserver as SocketServer
 import threading
 from struct import pack
 
-from bitstream import BitStream
+import bitstring
 
-from test import uint, lidgrenStr, swap32, swap16, nullTerminatedStr
+from test import uint, lidgrenStr, swap32, swap16, nullTerminatedStr, read_lidgren_str
 from util import log, ntohs, ip_to_int, inttoip, ntohl
 
 
@@ -15,7 +15,7 @@ class BasePacketHandler:
 
         self.lobby_server = lobby_server
 
-    def handle(self, sck, msg, client_address):
+    def handle(self, sck, msg: bitstring.ConstBitStream, client_address):
         pass
 
     def update(self, ip, port, host_game_id, internal_addr, internal_port, info_string):
@@ -33,63 +33,69 @@ class BasePacketHandler:
         finally:
             self.lobby_server.mutex.release()
 
-
-class SpectrePacketHandler(BasePacketHandler):
-    def handle(self, sck, msg: BitStream, client_address):
-        print("spectre packet {} External addr: {}".format(sck, client_address))
-
-        # length: 2 bytes
-        # Packet type: 1 byte, always 0
-        # Lobby ID: 4 bytes
-        # Info string: null-terminated characters
-
-        length = swap16(msg.read(uint(16)))
-
-        lobby_packet_version = msg.read(uint(8))
-
-        if lobby_packet_version != 1:
-            return
-
-        packet_type = msg.read(uint(8))
-
-        external_addr = ip_to_int(client_address[0])
-        external_port = client_address[1]
-
-        # Heartbeat
-        if packet_type == 0:
-            lobby_id = msg.read(msg.read(uint(32)))
-
-            internal_addr = ntohl(msg.read(uint(32)))
-            internal_port = ntohs(msg.read(uint(16)))
-
-            info_string = msg.read(nullTerminatedStr())
-
-            # print(length, packet_type, lobby_id)
-
-            print("External addr {}:{}".format(inttoip(external_addr), external_port))
-            print("Internal addr {}:{}".format(inttoip(internal_addr), internal_port))
-            print(info_string)
-
-            self.update(internal_addr, internal_port, 0, internal_addr, internal_port, info_string)
-
-        if packet_type == 4:
-            print("Punch-through")
-
+#
+# class SpectrePacketHandler(BasePacketHandler):
+#     def handle(self, sck, msg: BitStream, client_address):
+#         print("spectre packet {} External addr: {}".format(sck, client_address))
+#
+#         # length: 2 bytes
+#         # Packet type: 1 byte, always 0
+#         # Lobby ID: 4 bytes
+#         # Info string: null-terminated characters
+#
+#         length = swap16(msg.read(uint(16)))
+#
+#         lobby_packet_version = msg.read(uint(8))
+#
+#         if lobby_packet_version != 1:
+#             return
+#
+#         packet_type = msg.read(uint(8))
+#
+#         external_addr = ip_to_int(client_address[0])
+#         external_port = client_address[1]
+#
+#         # Heartbeat
+#         if packet_type == 0:
+#             lobby_id = msg.read(msg.read(uint(32)))
+#
+#             internal_addr = ntohl(msg.read(uint(32)))
+#             internal_port = ntohs(msg.read(uint(16)))
+#
+#             info_string = msg.read(nullTerminatedStr())
+#
+#             # print(length, packet_type, lobby_id)
+#
+#             print("External addr {}:{}".format(inttoip(external_addr), external_port))
+#             print("Internal addr {}:{}".format(inttoip(internal_addr), internal_port))
+#             print(info_string)
+#
+#             self.update(internal_addr, internal_port, 0, internal_addr, internal_port, info_string)
+#
+#         if packet_type == 4:
+#             print("Punch-through")
+#
 
         # Server should reply: [2 - length][1 - client 255][1 - 3 (lobby id)][4 - lobby id]
 
 
 class LidgrenPacketHandler(BasePacketHandler):
 
-    def handle(self, sck, msg: BitStream, client_address):
-        msgType = msg.read(uint(8), 1)
-        msg.read(uint(8))
-        msg.read(uint(8))
+    def handle(self, sck, msg: bitstring.ConstBitStream, client_address):
+        # msgType = msg.read(uint(8), 1)
+        msgType = msg.read('uint:8')
+        msg.bitpos += 16
+        # msg.read('uint:8')
+        # msg.read('uint:8')
+        length = swap16(msg.read('uint:16'))
 
-        length = msg.read(uint(16))
+        # msg.read(uint(8))
+        # msg.read(uint(8))
+
+        # length = msg.read(uint(16))
         # log("length: %s" % hex(length))
 
-        length = swap16(length)
+        # length = swap16(length)
         # log("length: %s (%d bytes)" % (hex(length), length >> 3))
         log("{}:{} wrote {} bytes. Payload size: {} bytes".format(
             client_address[0],
@@ -99,7 +105,8 @@ class LidgrenPacketHandler(BasePacketHandler):
 
         length >>= 3
 
-        packet_type = msg.read(uint(8))
+        packet_type = msg.read('uint:8')
+        # packet_type = msg.read(uint(8))
 
         if packet_type == 0:
             self.processHeartbeat(msg, client_address=client_address)
@@ -119,27 +126,27 @@ class LidgrenPacketHandler(BasePacketHandler):
         # if packet_type == 0:
         #     self.processHeartbeat()
 
-    def processHeartbeat(self, msg: BitStream, client_address):
+    def processHeartbeat(self, msg: bitstring.ConstBitStream, client_address):
 
         # Server ID. Should be random
-        server_id = swap32(msg.read(uint(32)))
+        server_id = swap32(msg.read('uint:32'))
 
         # Game ID (Hardcoded) - so lobby can support different games/products
-        host_game_id = swap32(msg.read(uint(32)))
+        host_game_id = swap32(msg.read('uint:32'))
 
         # Internal endpoint of host
-        addressBytesLength = msg.read(uint(8))
-        internal_addr = msg.read(uint(32))
-        internal_port = ntohs(msg.read(uint(16)))
+        addressBytesLength = msg.read('uint:8')
+        internal_addr = msg.read('uint:32')
+        internal_port = ntohs(msg.read('uint:16'))
 
         # info string
-        info_string = msg.read(lidgrenStr())
+        info_string = read_lidgren_str(msg) #msg.read(lidgrenStr())
 
         ip = ip_to_int(client_address[0])
         port = client_address[1]
 
-        print("Heartbeat from {}: Server ID: {}, Host Game ID: {}",
-              client_address, server_id, host_game_id)
+        print("Heartbeat from {}: Server ID: {}, Host Game ID: {}".format(
+              client_address, server_id, host_game_id))
 
         # print("Heartbeat from", client_address, ":", server_id, host_game_id,
         #       "{}:{}".format(inttoip(ip), port),
@@ -321,8 +328,11 @@ class UDPService:
             def handle(self):
                 self.data = self.request[0]
 
-                msg = BitStream()
-                msg.write(self.data, bytes)
+                # msg = BitStream()
+                # msg.write(self.data, bytes)
+
+                msg = bitstring.ConstBitStream(self.data)
+                print(msg)
 
                 packet_handler.handle(msg=msg, sck=self.request[1], client_address=self.client_address)
 

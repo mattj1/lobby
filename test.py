@@ -5,7 +5,7 @@ import sys
 import threading
 import time
 
-import bitstream
+from bitstring import ConstBitStream
 
 from HTTPService import HTTPService
 from InputThread import InputThread
@@ -92,36 +92,43 @@ def read_uint_factory(instance):  # use the name factory ?
     return read_uint
 
 
+def read_v_uint(stream: ConstBitStream, n=None):
+    if n is None:
+        integer = 0
+
+        while True:
+            # b = stream.read(uint(8))
+            b = stream.read('uint:8')
+            # print "read v uint byte: ", hex(b)
+            # print "read v uint byte (int): ", b
+            integer = (integer << 7) | (b & 0x7f)
+            if b & 0x80 != True:
+                break
+        # print "return ", integer
+        return integer
+    else:
+        return [read_v_uint(stream) for _ in range(n)]
+
+
 def read_v_uint_factory(instance):
-    def read_v_uint(stream, n=None):
-        if n is None:
-            integer = 0
-
-            while True:
-                b = stream.read(uint(8))
-                # print "read v uint byte: ", hex(b)
-                # print "read v uint byte (int): ", b
-                integer = (integer << 7) | (b & 0x7f)
-                if (b & 0x80 != True):
-                    break
-            # print "return ", integer
-            return integer
-        else:
-            integers = [read_v_uint(stream) for _ in range(n)]
-
     return read_v_uint
 
 
-def read_lidgrenStr_factory(instance):
-    def read_lidgrenStr(stream, n=None):
-        if n is None:
-            length = stream.read(v_uint())
-            return "".join(chr(stream.read(v_uint())) for _ in range(length))
-        else:
-            strings = [read_lidgrenStr(stream) for _ in range(n)]
-            return strings
+def read_lidgren_str(msg: ConstBitStream, n=None):
+    if n is None:
+        length = read_v_uint(msg)
+        # length = stream.read(v_uint())
+        # return "".join(chr(stream.read(v_uint())) for _ in range(length))
+        return "".join(chr(read_v_uint(msg)) for _ in range(length))
+    else:
+        strings = [read_lidgren_str(msg) for _ in range(n)]
+        return strings
 
-    return read_lidgrenStr
+# def read_lidgrenStr_factory(instance):
+#     def read_lidgrenStr(stream, n=None):
+
+#
+#     return read_lidgrenStr
 
 
 def write_lidgrenStr_factory(instance):
@@ -158,10 +165,10 @@ def read_nullTerminatedStr_factory(instance):
     return read_nullTerminatedStr
 
 
-bitstream.register(uint, reader=read_uint_factory, writer=write_uint_factory)
-bitstream.register(v_uint, reader=read_v_uint_factory)
-bitstream.register(lidgrenStr, reader=read_lidgrenStr_factory, writer=write_lidgrenStr_factory)
-bitstream.register(nullTerminatedStr, reader=read_nullTerminatedStr_factory, writer=None)
+# bitstream.register(uint, reader=read_uint_factory, writer=write_uint_factory)
+# bitstream.register(v_uint, reader=read_v_uint_factory)
+# bitstream.register(lidgrenStr, reader=read_lidgrenStr_factory, writer=write_lidgrenStr_factory)
+# bitstream.register(nullTerminatedStr, reader=read_nullTerminatedStr_factory, writer=None)
 
 
 # def sqlSafe(str):
@@ -216,7 +223,7 @@ class Lobby:
 
         log("Host: {}, UDP: {}, HTTP: {}".format(host, udp_port, http_port))
 
-        from UDPService import UDPService, LidgrenPacketHandler, SpectrePacketHandler
+        from UDPService import UDPService, LidgrenPacketHandler#, SpectrePacketHandler
         UDPService(host, udp_port, packet_handler=LidgrenPacketHandler(lobby_server=self))
         # UDPService(host, udp_port, packet_handler=SpectrePacketHandler(lobby_server=self))
 
