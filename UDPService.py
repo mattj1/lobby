@@ -160,14 +160,14 @@ class LidgrenPacketHandler(BasePacketHandler):
     def processPunchThrough(self, sck, msg, client_address):
 
         # Internal endpoint of client
-        addressBytesLength = msg.read(uint(8))
-        internal_addr = msg.read(uint(32))
-        internal_port = ntohs(msg.read(uint(16)))
+        addressBytesLength = msg.read('uint:8')
+        internal_addr = msg.read('uint:32')
+        internal_port = ntohs(msg.read('uint:16'))
 
         # Host address
-        addressBytesLength = msg.read(uint(8))
-        dest_addr = msg.read(uint(32))
-        dest_port = ntohs(msg.read(uint(16)))
+        addressBytesLength = msg.read('uint:8')
+        dest_addr = msg.read('uint:32')
+        dest_port = ntohs(msg.read('uint:16'))
 
         # External endpoint of client
         client_external_address = ip_to_int(client_address[0])
