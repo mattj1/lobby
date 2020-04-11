@@ -1,11 +1,25 @@
-version: '2'
+version: '3'
 services:
+  nginx: 
+    image: nginx:latest
+    container_name: production_nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - 8000:8000
+    networks:
+      - lobby
+
   web:
     build: .
-    command: python test.py
+    command: python test.py -h 0.0.0.0
     volumes:
       - .:/usr/src/app
     ports:
-      - "8000:8000"
-    environment:
-      DATABASE_URL: postgres://todoapp@postgres/todos
+      - 27713:27713/udp
+    networks:
+      - lobby
+
+networks:
+  lobby:
+
