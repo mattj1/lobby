@@ -8,7 +8,7 @@ class Game:
     def __init__(self):
         self.addr = 0
         self.port = 0
-        self.game_id = 0
+        self.game_id = "unknown"
 
         self.server_id = 0
         self.internal_addr = 0
@@ -36,10 +36,16 @@ class Game:
         return d
 
     def addr_formatted(self):
-        return "{}:{}".format(inttoip(self.addr), self.port)
+        try:
+            return "{}:{}".format(inttoip(self.addr), self.port)
+        except:
+            return self.addr
 
     def internal_addr_formatted(self):
-        return "{}:{}".format(inttoip(self.internal_addr), self.internal_port)
+        try:
+            return "{}:{}".format(inttoip(self.internal_addr), self.internal_port)
+        except:
+            return ""
 
     def update(self, info_string):
         info_dict = self.dict_from_info_string(info_string)
