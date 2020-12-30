@@ -106,24 +106,27 @@ class HTTPService:
                 obj = json.loads(post_data)
                 print(obj)
 
-
-                result = {}
+                result = None
 
                 if x.path == "/peerjs_heartbeat":
                     result = self.peerjs_heartbeat(urlparams, obj)
 
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self._send_cors_headers()
-                self.end_headers()
-                self.wfile.write(json.dumps(result).encode(encoding='utf_8'))
+                if result:
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self._send_cors_headers()
+                    self.end_headers()
+                    self.wfile.write(json.dumps(result).encode(encoding='utf_8'))
+                else:
+                    self.send_response(500)
+                    self.end_headers()
 
             def do_GET(self):
 
                 x = urlparse(self.path)
                 params = parse_qs(x.query)
                 # print(x)
-                result = {}
+                result = None
 
                 if x.path == "/games":
                     result = self.games(params)
@@ -131,11 +134,15 @@ class HTTPService:
                 if x.path == "/totalplayers":
                     result = self.totalplayers(params)
 
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                self.wfile.write(json.dumps(result).encode(encoding='utf_8'))
+                if result:
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+                    self.wfile.write(json.dumps(result).encode(encoding='utf_8'))
+                else:
+                    self.send_response(500)
+                    self.end_headers()
 
             def _send_cors_headers(self):
                 self.send_header('Access-Control-Allow-Origin', '*')
