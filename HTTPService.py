@@ -19,16 +19,21 @@ class HTTPService:
             #     self.send_header('Access-Control-Allow-Origin', '*')
             #     super().end_headers()
 
-            def games(self, params):
-                print("Will return games...", params)
+            def game_id_from_params(self, params):
                 try:
-                    game_id = str(params["game_id"][0])
+                    return str(params["game_id"][0])
                 except KeyError:
-                    game_id = "unknown"
+                    pass
+
+                return None
+
+            def games(self, params):
+
+                game_id = self.game_id_from_params(params)
 
                 print("game_id:", game_id)
 
-                if game_id == -1:
+                if not game_id:
                     return {}
 
                 lobby_server.mutex.acquire()
@@ -49,6 +54,20 @@ class HTTPService:
                 return {
                     "games": games_dict
                 }
+
+            def totalplayers(self, params):
+
+                np = 0
+
+                game_id = self.game_id_from_params(params)
+
+                print("game_id:", game_id)
+
+                if game_id:
+                    for s in lobby_server.active_servers_for_game_id(game_id):
+                        np = np + s.num_players
+
+                return {"totalplayers": np}
 
             def peerjs_heartbeat(self, urlparams, obj):
 
@@ -108,6 +127,9 @@ class HTTPService:
 
                 if x.path == "/games":
                     result = self.games(params)
+
+                if x.path == "/totalplayers":
+                    result = self.totalplayers(params)
 
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')

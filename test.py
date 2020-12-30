@@ -186,6 +186,9 @@ class Lobby:
 
         return None
 
+    def active_servers_for_game_id(self, game_id):
+        return [x for x in self.servers if x.timestamp > datetime.datetime.now() and x.game_id == game_id]
+
     def server_exists(self, ip, port, game_id):
         if self.get_server(ip, port, game_id):
             return True
