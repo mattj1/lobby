@@ -65,7 +65,7 @@ class HTTPService:
 
                 if game_id:
                     for s in lobby_server.active_servers_for_game_id(game_id):
-                        np = np + s.num_players
+                        np = np + int(s.num_players)
 
                 return {"totalplayers": np}
 
