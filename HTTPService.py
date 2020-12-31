@@ -31,7 +31,7 @@ class HTTPService:
 
                 game_id = self.game_id_from_params(params)
 
-                print("game_id:", game_id)
+                # print("game_id:", game_id)
 
                 if not game_id:
                     return {}
@@ -61,7 +61,7 @@ class HTTPService:
 
                 game_id = self.game_id_from_params(params)
 
-                print("game_id:", game_id)
+                # print("game_id:", game_id)
 
                 if game_id:
                     for s in lobby_server.active_servers_for_game_id(game_id):
@@ -99,9 +99,9 @@ class HTTPService:
 
                 x = urlparse(self.path)
                 urlparams = parse_qs(x.query)
-                print(x)
+                # print(x)
 
-                print("urlparams: ", urlparams)
+                #print("urlparams: ", urlparams)
 
                 obj = json.loads(post_data)
                 print(obj)
